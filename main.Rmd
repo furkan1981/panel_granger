@@ -1,0 +1,118 @@
+---
+title: "Emirmahmutoglu & Kose (2011) Panel Granger Causality Test "
+author: "Furkan Emirmahmutoglu"
+date: "7/18/2021"
+output: html_document
+---
+```{r}
+if(!is.null(dev.list())) dev.off()
+cat("\014")
+rm(list=ls(all=TRUE))
+```
+
+```{r}
+library(devtools)
+library(roxygen2)
+library(vars)        # library for VAR models   
+library(aod)         # library for Wald test 
+library(readxl)
+library(Jmisc)
+library(tsDyn)
+library(urca)
+
+# Subprograms 
+source("GC.R")
+source("TYGC.R")
+source("EK.R")
+source("EK_Boot.R")
+source("TYGC_Boot.R")
+```
+
+```{r}
+df <- read_excel("data1.xlsx")
+
+# Enter the number of individuals
+NN <- readline("The number of individual:")
+NN <- as.integer(NN)
+
+series <- df[,-(1:2)]
+nvar <- ncol(series)
+
+series <- as.matrix(series)
+TT <- nrow(series)/NN    
+indix1 <-  matrix(1:(TT*NN),TT,NN) 
+
+# Determinate the dmax (pretest, ADF unit root test)
+dmax <- NULL
+for (i in 1:NN) {
+  ind_series <- series[indix1[,i],]
+  d <- NULL
+  for (k in 1:nvar) {
+    model_adf <- ur.df(ind_series[,k], type ="drift", lags = 8, selectlags = "BIC")     
+    if (model_adf@teststat[1] < model_adf@cval[1,2]) {
+      d[k] <- 0
+    } else {
+      model_adf <- ur.df(diff(ind_series[,k]), type ="drift", lags = 8, selectlags = "BIC") 
+      if (model_adf@teststat[1] < model_adf@cval[1,2]) {
+        d[k] <- 1
+    } else {
+        d[k] <- 2 
+        }
+      }
+    }
+  dmax[i] = max(d)
+  }
+dmax
+```
+
+```{r}
+result <- EK(series, NN, dmax, lag.max = 8, ic = "BIC", type = "constant")
+```
+
+
+```{r}
+# from lrgdp to lexport 
+result1 <- EK_Boot(series, NN, dmax, p = result$Individual_LagOrder, 
+                   type = "constant", from = 1, to = 2, nboot = 1000)  
+result1
+
+# from lrgdp to limport 
+# EK_Boot(series, NN, dmax, p = result$Individual_LagOrder, type = "constant", from = 1, to = 3, nboot = 1000)  
+
+# from limport to lrgdp
+# EK_Boot(series, NN, dmax, p = result$Individual_LagOrder, type = "constant", from = 3, to = 1, nboot = 1000)  
+
+```
+
+```{r RESULTS}
+cat("\n")
+cat("Emirmahmutoglu & Kose (2011) Panel Granger Causality Test Results" , "\n")
+cat("------------------------------------------------------------------", "\n")
+cat("Time Period:", result$T, "\n")
+cat("Panel members:", result$N, "\n")
+cat("Information Criteria Method:", result$ic, "\n")
+cat("---------------------------------------", "\n")
+
+cat("from Variable:", result1$from_variable, "\n")  
+cat("to Variable:", result1$to_variable, "\n")
+cat("---------------------------------", "\n") 
+
+cat("Fisher Test Statistics:", result$Fisher_Stat[result1$to_variable,result1$from_variable], "\n")
+cat("Bootstrap Critical Values:", result1$Bootstrap_Critical_Values, "\n")
+cat ("************************************************************", "\n")
+cat ("************************************************************", "\n")
+
+for (i in 1:NN) {
+  cat ("Individual:", i, "\n")
+  cat ("--------------", "\n")
+  cat ("VAR model lag order:", result$Individual_LagOrder[i], "\n")
+  cat ("---------------------------------------------------", "\n")
+  cat ("Wald Statistics:", result$Individual_Wald[result1$to_variable,result1$from_variable,i], "\n")
+  cat ("Prob.:", result$Individual_pvalue[result1$to_variable,result1$from_variable,i], "\n")
+  cat ("---------------------------------------", "\n")
+}
+```
+
+
+
+
